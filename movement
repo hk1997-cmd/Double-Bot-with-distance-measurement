@@ -1,0 +1,92 @@
+# move_in_triangle.py
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
+import math
+import time
+
+class TriangleMover(Node):
+    def __init__(self):
+        super().__init__('triangle_mover')
+
+        # Publishers for each robot's velocity commands
+        self.robot1_cmd_vel = self.create_publisher(Twist, '/robot1/cmd_vel', 10)
+        self.robot2_cmd_vel = self.create_publisher(Twist, '/robot2/cmd_vel', 10)
+
+        # Subscribers for each robot's odometry
+        self.robot1_odom_sub = self.create_subscription(Odometry, '/robot1/odom', self.robot1_odom_callback, 10)
+        self.robot2_odom_sub = self.create_subscription(Odometry, '/robot2/odom', self.robot2_odom_callback, 10)
+
+        # Waypoints for the triangular path
+        self.waypoints = [
+            (2.0, 0.0),  # First point of the triangle
+            (-1.0, math.sqrt(3)),  # Second point of the triangle
+            (-1.0, -math.sqrt(3)),  # Third point of the triangle
+        ]
+        
+        # Initialize odometry data and tracking state
+        self.robot1_position = (0.0, 0.0)
+        self.robot2_position = (0.0, 0.0)
+        self.robot1_goal_index = 0
+        self.robot2_goal_index = 0
+        self.distance_tolerance = 0.1
+
+        # Update timers
+        self.timer = self.create_timer(0.1, self.update_positions)
+
+    def robot1_odom_callback(self, msg):
+        # Update robot1's position from odometry
+        self.robot1_position = (msg.pose.pose.position.x, msg.pose.pose.position.y)
+
+    def robot2_odom_callback(self, msg):
+        # Update robot2's position from odometry
+        self.robot2_position = (msg.pose.pose.position.x, msg.pose.pose.position.y)
+
+    def move_towards_goal(self, robot_position, goal, publisher):
+        """ Calculate velocities to move a robot towards a goal position """
+        goal_x, goal_y = goal
+        x, y = robot_position
+
+        # Compute distance and angle to the goal
+        distance = math.sqrt((goal_x - x) ** 2 + (goal_y - y) ** 2)
+        angle_to_goal = math.atan2(goal_y - y, goal_x - x)
+
+        # Create Twist message for moving the robot
+        twist = Twist()
+
+        # Proportional control for linear and angular velocities
+        twist.linear.x = min(0.5, distance)
+        twist.angular.z = angle_to_goal
+
+        # Publish the velocity command
+        publisher.publish(twist)
+
+    def update_positions(self):
+        """ Update positions of both robots to move towards the next waypoint """
+        # Move robot1 towards its next waypoint
+        goal1 = self.waypoints[self.robot1_goal_index]
+        if self.reached_goal(self.robot1_position, goal1):
+            self.robot1_goal_index = (self.robot1_goal_index + 1) % len(self.waypoints)
+        self.move_towards_goal(self.robot1_position, goal1, self.robot1_cmd_vel)
+
+        # Move robot2 towards its next waypoint
+        goal2 = self.waypoints[self.robot2_goal_index]
+        if self.reached_goal(self.robot2_position, goal2):
+            self.robot2_goal_index = (self.robot2_goal_index + 1) % len(self.waypoints)
+        self.move_towards_goal(self.robot2_position, goal2, self.robot2_cmd_vel)
+
+    def reached_goal(self, position, goal):
+        """ Check if a robot has reached its current goal """
+        x, y = position
+        goal_x, goal_y = goal
+        return math.sqrt((goal_x - x) ** 2 + (goal_y - y) ** 2) < self.distance_tolerance
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = TriangleMover()
+    rclpy.spin(node)
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
