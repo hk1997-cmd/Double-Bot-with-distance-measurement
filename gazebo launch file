@@ -1,0 +1,27 @@
+# my_two_robot_launch.py
+from launch import LaunchDescription
+from launch_ros.actions import Node
+from launch.actions import ExecuteProcess
+
+def generate_launch_description():
+    # Spawn the first robot at position (0, 0, 0)
+    spawn_robot1 = Node(
+        package='gazebo_ros',
+        executable='spawn_entity.py',
+        arguments=['-entity', 'robot1', '-x', '0', '-y', '0', '-z', '0', '-file', '/path/to/robot1.urdf'],
+        output='screen'
+    )
+
+    # Spawn the second robot at position (2, 0, 0)
+    spawn_robot2 = Node(
+        package='gazebo_ros',
+        executable='spawn_entity.py',
+        arguments=['-entity', 'robot2', '-x', '2', '-y', '0', '-z', '0', '-file', '/path/to/robot2.urdf'],
+        output='screen'
+    )
+
+    # Launch description
+    return LaunchDescription([
+        spawn_robot1,
+        spawn_robot2,
+    ])
